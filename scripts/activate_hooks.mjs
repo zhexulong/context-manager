@@ -11,41 +11,47 @@ const BLOCK_BEGIN = "# BEGIN CONTEXT-MANAGER HOOK TRUST";
 const BLOCK_END = "# END CONTEXT-MANAGER HOOK TRUST";
 const SKILL_NAME = "guidance-recall";
 const PACKAGE_ROOT = path.resolve(moduleDir(import.meta.url), "..");
-const HOOK_STANZAS = [
-  [
-    "[[hooks.SessionStart]]",
-    'matcher = "startup|resume|clear"',
-    "",
-    "[[hooks.SessionStart.hooks]]",
-    'type = "command"',
-    'command = "node hooks/session_start.mjs --repo-root ."',
-    "timeout = 10"
-  ].join("\n"),
-  [
-    "[[hooks.PreCompact]]",
-    "",
-    "[[hooks.PreCompact.hooks]]",
-    'type = "command"',
-    'command = "node hooks/pre_compact.mjs --repo-root ."',
-    "timeout = 20"
-  ].join("\n"),
-  [
-    "[[hooks.UserPromptSubmit]]",
-    "",
-    "[[hooks.UserPromptSubmit.hooks]]",
-    'type = "command"',
-    'command = "node hooks/user_prompt_submit.mjs --repo-root ."',
-    "timeout = 10"
-  ].join("\n"),
-  [
-    "[[hooks.Stop]]",
-    "",
-    "[[hooks.Stop.hooks]]",
-    'type = "command"',
-    'command = "node hooks/stop.mjs --repo-root ."',
-    "timeout = 20"
-  ].join("\n")
-];
+function hookScriptCommand(scriptName) {
+  return `node ${JSON.stringify(path.join(PACKAGE_ROOT, "hooks", scriptName))} --repo-root .`;
+}
+
+function hookStanzas() {
+  return [
+    [
+      "[[hooks.SessionStart]]",
+      'matcher = "startup|resume|clear"',
+      "",
+      "[[hooks.SessionStart.hooks]]",
+      'type = "command"',
+      `command = ${JSON.stringify(hookScriptCommand("session_start.mjs"))}`,
+      "timeout = 10"
+    ].join("\n"),
+    [
+      "[[hooks.PreCompact]]",
+      "",
+      "[[hooks.PreCompact.hooks]]",
+      'type = "command"',
+      `command = ${JSON.stringify(hookScriptCommand("pre_compact.mjs"))}`,
+      "timeout = 20"
+    ].join("\n"),
+    [
+      "[[hooks.UserPromptSubmit]]",
+      "",
+      "[[hooks.UserPromptSubmit.hooks]]",
+      'type = "command"',
+      `command = ${JSON.stringify(hookScriptCommand("user_prompt_submit.mjs"))}`,
+      "timeout = 10"
+    ].join("\n"),
+    [
+      "[[hooks.Stop]]",
+      "",
+      "[[hooks.Stop.hooks]]",
+      'type = "command"',
+      `command = ${JSON.stringify(hookScriptCommand("stop.mjs"))}`,
+      "timeout = 20"
+    ].join("\n")
+  ];
+}
 
 function escapeForRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
@@ -99,11 +105,12 @@ function replaceHookBlock(text, eventName, block) {
 
 function ensureHookStanzas(text) {
   let output = ensureHooksTable(text);
+  const stanzas = hookStanzas();
   const required = [
-    { eventName: "SessionStart", marker: /\[\[hooks\.SessionStart\]\]/, block: HOOK_STANZAS[0] },
-    { eventName: "PreCompact", marker: /\[\[hooks\.PreCompact\]\]/, block: HOOK_STANZAS[1] },
-    { eventName: "UserPromptSubmit", marker: /\[\[hooks\.UserPromptSubmit\]\]/, block: HOOK_STANZAS[2] },
-    { eventName: "Stop", marker: /\[\[hooks\.Stop\]\]/, block: HOOK_STANZAS[3] }
+    { eventName: "SessionStart", marker: /\[\[hooks\.SessionStart\]\]/, block: stanzas[0] },
+    { eventName: "PreCompact", marker: /\[\[hooks\.PreCompact\]\]/, block: stanzas[1] },
+    { eventName: "UserPromptSubmit", marker: /\[\[hooks\.UserPromptSubmit\]\]/, block: stanzas[2] },
+    { eventName: "Stop", marker: /\[\[hooks\.Stop\]\]/, block: stanzas[3] }
   ];
   for (const { eventName, marker, block } of required) {
     if (marker.test(output)) {
@@ -155,7 +162,8 @@ export async function main(argv = process.argv.slice(2)) {
 
   process.stdout.write(
     [
-      `Repo-local hooks ready in ${configPath}`,
+      `Codex hooks configured in ${configPath}`,
+      `Hook commands point to ${path.join(PACKAGE_ROOT, "hooks")}`,
       `Guidance skill installed in ${skillDir}`,
       "Codex will still ask for one-time hook review on first run.",
       "Accepted trust is managed by Codex in ~/.codex/config.toml."

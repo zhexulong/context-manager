@@ -43,7 +43,8 @@ Agent 用久了以后，历史对话会越来越长，但真正有用的信息�
 通过 npm：
 
 1. 进入你要接入的目标 repo
-2. 运行 `npx @zhexulong/context-manager init --repo-root .`
+2. 运行 `npm install -g @omnimer/context-manager`
+3. 运行 `context-manager init --repo-root .`
 
 通过源码仓库：
 
@@ -56,6 +57,8 @@ Agent 用久了以后，历史对话会越来越长，但真正有用的信息�
 如果你当前就在 `context-manager/` 目录里，也可以直接指定目标 repo：
 
 - `node ./bin/context-manager.mjs init --repo-root /path/to/target-repo`
+
+`init` 会在目标 repo 里写入 Codex hook 配置。配置会指向已安装的 `context-manager` 运行代码，不会在目标 repo 里复制或链接 `hooks/`、`scripts/`。
 
 常用命令：
 
@@ -81,6 +84,7 @@ Agent 用久了以后，历史对话会越来越长，但真正有用的信息�
 - `reports/pending-flush/` 只承担可重放入口
 - `reports/llm-failures/` 只承担失败诊断记录
 - 项目级 hook 定义位于 `.codex/config.toml`
+- `init` 只写目标 repo 的 Codex 配置，不复制或链接运行时代码
 - `guidance-recall` skill 安装到 `~/.codex/skills/guidance-recall/`
 - `compile` 在来源冲突时以后来的、已验证的当前状态为准，不继续固化过时 guidance
 - `activate_hooks.mjs` 是 `init` 命令的内部实现
