@@ -94,3 +94,7 @@ Agent 用久了以后，历史对话会越来越长，但真正有用的信息�
 - `openai/codex`
 - `openai/codex-plugin-cc`
 - `zilliztech/memsearch`
+
+## 社区
+
+欢迎提交 issue 和 pull request！感谢 linux.do 社区的讨论和反馈，帮助我们不断完善这个项目。
