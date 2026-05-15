@@ -2,7 +2,20 @@ import { truncateUtf8 } from "./utils.mjs";
 
 const MAX_PREVIEW_BYTES = 240;
 const MAX_INLINE_TOOL_OUTPUT_BYTES = 320;
+const MAX_DIGEST_BYTES = 48 * 1024;
+const MAX_TIMELINE_BYTES = 42 * 1024;
+const MAX_USER_MESSAGE_BYTES = 2200;
+const MAX_ASSISTANT_MESSAGE_BYTES = 1800;
+const MESSAGE_TRUNCATION_MARKER = "\n\n[message truncated]";
 const KNOWN_TRANSCRIPT_TYPES = new Set(["session_meta", "event_msg", "response_item", "user_message", "agent_message"]);
+const HIGH_SIGNAL_RE = /(decision|decided|workflow|convention|must|should|need to|root cause|fix|plan|architecture|boundary|risk|regression|决定|结论|流程|约定|必须|应该|修复|原因|计划|架构|边界|风险)/iu;
+const BOOTSTRAP_PATTERNS = [
+  /^# AGENTS\.md instructions for /u,
+  /<INSTRUCTIONS>\s*# AGENTS\.md/iu,
+  /You are Codex, a coding agent based on GPT-5\./u,
+  /## Final answer instructions/u,
+  /## Intermediary updates/u
+];
 
 function parseJsonLines(text) {
   const lines = text
@@ -48,6 +61,9 @@ function isBootstrapOrEnvironmentMessage(role, text) {
     return true;
   }
   if (text.startsWith("<environment_context>")) {
+    return true;
+  }
+  if (BOOTSTRAP_PATTERNS.some((pattern) => pattern.test(text))) {
     return true;
   }
   return false;
@@ -119,33 +135,129 @@ function summarizeToolOutput(output) {
   return `${status}; output: ${previewText(body)}`;
 }
 
-function renderConversation(entries) {
-  if (entries.length === 0) {
-    return "";
+function truncateMessageText(text, role) {
+  const compact = compactWhitespace(text);
+  const maxBytes = role === "user" ? MAX_USER_MESSAGE_BYTES : MAX_ASSISTANT_MESSAGE_BYTES;
+  if (Buffer.byteLength(compact, "utf8") <= maxBytes) {
+    return compact;
   }
-  const lines = ["## Conversation", ""];
-  for (const entry of entries) {
-    lines.push(`### ${entry.role === "user" ? "User" : "Assistant"}`, "", entry.text, "");
-  }
-  return lines.join("\n").trimEnd();
+  const allowedBytes = Math.max(maxBytes - Buffer.byteLength(MESSAGE_TRUNCATION_MARKER, "utf8"), 0);
+  return `${truncateUtf8(compact, allowedBytes).trimEnd()}${MESSAGE_TRUNCATION_MARKER}`;
 }
 
-function renderToolSummaries(entries) {
-  if (entries.length === 0) {
-    return "";
-  }
-  const lines = ["## Tool Activity Summary", ""];
-  for (const entry of entries) {
+function renderTimelineEntry(entry) {
+  if (entry.kind === "tool") {
     const args = entry.arguments ? ` ${entry.arguments}` : "";
-    lines.push(`- \`${entry.name}\`${args}: ${entry.summary}`);
+    return [`### Tool \`${entry.name}\`${args}`, "", entry.summary, ""].join("\n");
   }
-  return lines.join("\n");
+  return [`### ${entry.role === "user" ? "User" : "Assistant"}`, "", entry.text, ""].join("\n");
 }
 
-function renderOmittedSummary(stats) {
+function timelineSignalScore(entry, totalEntries) {
+  if (entry.kind === "tool") {
+    let score = 20;
+    if (entry.summary.includes("exit ") && !entry.summary.includes("exit 0")) {
+      score += 40;
+    }
+    if (entry.summary.includes("verbose output omitted")) {
+      score += 10;
+    }
+    if (entry.index >= Math.max(totalEntries - 8, 0)) {
+      score += 8;
+    }
+    return score;
+  }
+
+  let score = entry.role === "user" ? 100 : 70;
+  if (entry.index === 0) {
+    score += 20;
+  }
+  if (entry.index >= Math.max(totalEntries - 6, 0)) {
+    score += 18;
+  }
+  if (HIGH_SIGNAL_RE.test(entry.text)) {
+    score += 30;
+  }
+  if (entry.text.includes("?")) {
+    score += 8;
+  }
+  if (entry.text.length <= 280) {
+    score += 6;
+  }
+  return score;
+}
+
+function selectBudgetedEntries(entries, maxBytes, renderEntry, scoreEntry, mandatoryPredicates = []) {
+  const candidates = entries.map((entry, index) => {
+    const rendered = renderEntry(entry);
+    return {
+      ...entry,
+      rendered,
+      originalIndex: index,
+      bytes: Buffer.byteLength(rendered, "utf8"),
+      score: scoreEntry(entry, entries.length)
+    };
+  });
+  const selected = new Set();
+  let used = 0;
+
+  function includeCandidate(candidate) {
+    if (!candidate || selected.has(candidate.originalIndex)) {
+      return;
+    }
+    if (used + candidate.bytes > maxBytes) {
+      return;
+    }
+    selected.add(candidate.originalIndex);
+    used += candidate.bytes;
+  }
+
+  for (const predicate of mandatoryPredicates) {
+    includeCandidate(candidates.find(predicate));
+  }
+
+  for (const candidate of [...candidates].sort((left, right) => {
+    if (right.score !== left.score) {
+      return right.score - left.score;
+    }
+    return right.originalIndex - left.originalIndex;
+  })) {
+    includeCandidate(candidate);
+  }
+
+  return candidates.filter((candidate) => selected.has(candidate.originalIndex)).sort((left, right) => left.originalIndex - right.originalIndex);
+}
+
+function renderTimeline(entries) {
+  const selectedEntries = selectBudgetedEntries(entries, MAX_TIMELINE_BYTES, renderTimelineEntry, timelineSignalScore, [
+    (entry) => entry.kind === "message" && entry.role === "user",
+    (entry) => entry.kind === "message" && entry.role === "user" && entry.index === entries.length - 1,
+    (entry) => entry.kind === "message" && entry.role === "assistant" && entry.index === entries.length - 1
+  ]);
+  if (selectedEntries.length === 0) {
+    return { text: "", keptConversation: 0, keptTools: 0 };
+  }
+  const lines = ["## Timeline", ""];
+  for (const entry of selectedEntries) {
+    lines.push(entry.rendered);
+  }
+  return {
+    text: lines.join("\n").trimEnd(),
+    keptConversation: selectedEntries.filter((entry) => entry.kind === "message").length,
+    keptTools: selectedEntries.filter((entry) => entry.kind === "tool").length
+  };
+}
+
+function renderOmittedSummary(stats, selectedConversationCount, selectedToolCount) {
   const lines = [];
   if (stats.bootstrapMessages > 0) {
     lines.push(`- Skipped ${stats.bootstrapMessages} bootstrap or environment message(s).`);
+  }
+  if (stats.conversationMessages > selectedConversationCount) {
+    lines.push(`- Kept ${selectedConversationCount} of ${stats.conversationMessages} conversation message(s) by signal and budget.`);
+  }
+  if (stats.toolSummaries > selectedToolCount) {
+    lines.push(`- Kept ${selectedToolCount} of ${stats.toolSummaries} tool summary item(s) by signal and budget.`);
   }
   if (stats.runtimeEvents > 0) {
     lines.push(`- Skipped ${stats.runtimeEvents} runtime bookkeeping event(s).`);
@@ -173,20 +285,26 @@ export function reduceTranscriptForFlush(text) {
     return raw;
   }
 
-  const conversation = [];
   const seenConversation = new Set();
   const toolCalls = new Map();
-  const toolSummaries = [];
+  const timeline = [];
   const stats = {
     bootstrapMessages: 0,
+    conversationMessages: 0,
     runtimeEvents: 0,
     reasoningEvents: 0,
-    otherMessages: 0
+    otherMessages: 0,
+    toolSummaries: 0
   };
+  let timelineIndex = 0;
 
   function pushConversation(role, textValue) {
-    const textContent = compactWhitespace(textValue);
+    const textContent = truncateMessageText(textValue, role);
     if (!textContent) {
+      return;
+    }
+    if (isBootstrapOrEnvironmentMessage(role, textContent)) {
+      stats.bootstrapMessages += 1;
       return;
     }
     const dedupeKey = `${role}\u0000${textContent}`;
@@ -194,7 +312,10 @@ export function reduceTranscriptForFlush(text) {
       return;
     }
     seenConversation.add(dedupeKey);
-    conversation.push({ role, text: textContent });
+    const entry = { kind: "message", role, text: textContent, index: timelineIndex };
+    timeline.push(entry);
+    timelineIndex += 1;
+    stats.conversationMessages += 1;
   }
 
   for (const record of records) {
@@ -247,11 +368,15 @@ export function reduceTranscriptForFlush(text) {
 
     if (payload.type === "function_call_output") {
       const tool = toolCalls.get(payload.call_id || "") || { name: "tool", arguments: "" };
-      toolSummaries.push({
+      timeline.push({
+        kind: "tool",
         name: tool.name,
         arguments: tool.arguments,
-        summary: summarizeToolOutput(payload.output)
+        summary: summarizeToolOutput(payload.output),
+        index: timelineIndex
       });
+      timelineIndex += 1;
+      stats.toolSummaries += 1;
       continue;
     }
 
@@ -272,18 +397,14 @@ export function reduceTranscriptForFlush(text) {
     "- Omitted bootstrap instructions, environment payloads, reasoning traces, and runtime bookkeeping.",
     ""
   ];
-  const conversationSection = renderConversation(conversation);
-  if (conversationSection) {
-    sections.push(conversationSection, "");
+  const timelineSection = renderTimeline(timeline);
+  if (timelineSection.text) {
+    sections.push(timelineSection.text, "");
   }
-  const toolSection = renderToolSummaries(toolSummaries);
-  if (toolSection) {
-    sections.push(toolSection, "");
-  }
-  const omittedSection = renderOmittedSummary(stats);
+  const omittedSection = renderOmittedSummary(stats, timelineSection.keptConversation, timelineSection.keptTools);
   if (omittedSection) {
     sections.push(omittedSection, "");
   }
 
-  return sections.join("\n").trim();
+  return truncateUtf8(sections.join("\n").trim(), MAX_DIGEST_BYTES).trimEnd();
 }

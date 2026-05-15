@@ -1,6 +1,6 @@
 {
   "name": "@omnimer/context-manager",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Turn agent conversations into reusable guidance and context.",
   "license": "MIT",
   "type": "module",
