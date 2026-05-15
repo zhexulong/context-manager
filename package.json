@@ -1,0 +1,20 @@
+{
+  "name": "context-manager",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "context-manager": "./bin/context-manager.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "init": "node ./bin/context-manager.mjs init",
+    "compile": "node ./bin/context-manager.mjs compile",
+    "lint": "node ./bin/context-manager.mjs lint",
+    "replay-pending": "node ./bin/context-manager.mjs replay-pending",
+    "smoke:e2e": "node ./bin/context-manager.mjs smoke-e2e"
+  }
+}
