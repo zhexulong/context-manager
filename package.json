@@ -1,10 +1,38 @@
 {
-  "name": "context-manager",
+  "name": "@omnimer/context-manager",
   "version": "0.1.0",
-  "private": true,
+  "description": "Turn agent conversations into reusable guidance and context.",
+  "license": "MIT",
   "type": "module",
   "bin": {
-    "context-manager": "./bin/context-manager.mjs"
+    "context-manager": "bin/context-manager.mjs"
+  },
+  "files": [
+    "README.md",
+    "bin/",
+    "hooks/",
+    "scripts/",
+    "skills/"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zhexulong/context-manager.git"
+  },
+  "homepage": "https://github.com/zhexulong/context-manager",
+  "bugs": {
+    "url": "https://github.com/zhexulong/context-manager/issues"
+  },
+  "keywords": [
+    "agent",
+    "codex",
+    "claude-code",
+    "context",
+    "guidance",
+    "memory",
+    "transcript"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "engines": {
     "node": ">=20"
@@ -14,6 +42,7 @@
     "init": "node ./bin/context-manager.mjs init",
     "compile": "node ./bin/context-manager.mjs compile",
     "lint": "node ./bin/context-manager.mjs lint",
+    "migrate-codex-history": "node ./bin/context-manager.mjs migrate-codex-history",
     "replay-pending": "node ./bin/context-manager.mjs replay-pending",
     "smoke:e2e": "node ./bin/context-manager.mjs smoke-e2e"
   }

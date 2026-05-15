@@ -5,6 +5,7 @@ import path from "node:path";
 import process from "node:process";
 
 import { runCodexStructured } from "./lib/llm.mjs";
+import { normalizeWorkingMemoryFile } from "./lib/working_memory.mjs";
 import {
   ensureDirectory,
   firstHeading,
@@ -103,7 +104,11 @@ function collectExistingGuidancePages(guidanceDir) {
 }
 
 function collectWorkingMemoryEntries(repoRoot) {
-  return markdownFiles(path.join(repoRoot, "working-memory"));
+  const entries = markdownFiles(path.join(repoRoot, "working-memory"));
+  for (const entry of entries) {
+    normalizeWorkingMemoryFile(repoRoot, entry);
+  }
+  return entries;
 }
 
 function titleForEntry(entry) {
@@ -114,7 +119,7 @@ function titleForEntry(entry) {
 function buildChunkBody(lines) {
   return lines
     .filter((line) => !markdownExplicitAnchorId(line))
-    .filter((line) => !line.includes("context-manager: session_id="))
+    .filter((line) => !/<!--\s*(?:context-manager|codex-memory-compiler):\s*session_id=/u.test(line))
     .filter((line) => !line.startsWith("Source: `"))
     .map((line) => line.replace(/\s+$/u, ""))
     .join("\n")

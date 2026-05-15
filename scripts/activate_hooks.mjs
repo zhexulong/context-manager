@@ -119,7 +119,7 @@ function desiredProjectConfig() {
   return ensureHookStanzas(ensureHooksFeatureEnabled(""));
 }
 
-function codexHomeDir() {
+export function codexHomeDir() {
   const configured = process.env.CODEX_MEMORY_COMPILER_CODEX_HOME;
   if (configured) {
     return path.resolve(configured);
@@ -127,7 +127,7 @@ function codexHomeDir() {
   return path.join(os.homedir(), ".codex");
 }
 
-function installGuidanceSkill() {
+export function installGuidanceSkill() {
   const sourceDir = path.join(PACKAGE_ROOT, "skills", SKILL_NAME);
   if (!fs.existsSync(sourceDir) || !fs.statSync(sourceDir).isDirectory()) {
     throw new Error(`Missing guidance skill source: ${sourceDir}`);

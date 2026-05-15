@@ -10,6 +10,7 @@ const COMMANDS = {
   init: "scripts/activate_hooks.mjs",
   compile: "scripts/compile.mjs",
   lint: "scripts/lint.mjs",
+  "migrate-codex-history": "scripts/migrate_codex_history.mjs",
   "replay-pending": "scripts/replay_pending.mjs",
   "smoke-e2e": "scripts/smoke_e2e.mjs"
 };
@@ -17,7 +18,7 @@ const COMMANDS = {
 const command = process.argv[2];
 if (!command || !(command in COMMANDS)) {
   process.stderr.write(
-    "Usage: context-manager <init|compile|lint|replay-pending|smoke-e2e> [args]\n"
+    "Usage: context-manager <init|compile|lint|migrate-codex-history|replay-pending|smoke-e2e> [args]\n"
   );
   process.exit(1);
 }

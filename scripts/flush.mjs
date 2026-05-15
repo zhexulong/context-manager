@@ -6,6 +6,7 @@ import path from "node:path";
 import process from "node:process";
 
 import { runCodexStructured } from "./lib/llm.mjs";
+import { normalizeWorkingMemoryFile } from "./lib/working_memory.mjs";
 import {
   ensureDirectory,
   isMainModule,
@@ -269,7 +270,7 @@ export function appendEntry(repoRoot, entryDate, title, sourcePath, body, option
 
   const lines = [];
   if (fs.existsSync(targetPath)) {
-    const existing = fs.readFileSync(targetPath, "utf8").trimEnd();
+    const existing = normalizeWorkingMemoryFile(repoRoot, targetPath).trimEnd();
     const replaced = replaceSessionSection(existing, block, sessionId);
     if (replaced !== null) {
       fs.writeFileSync(targetPath, `${replaced}\n`, "utf8");

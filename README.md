@@ -37,10 +37,24 @@ Agent 用久了以后，历史对话会越来越长，但真正有用的信息�
 
 ## 快速开始
 
-安装：
+当前有两种使用方式：
 
-- `npm install`
-- `npm run init`
+通过 npm：
+
+1. 进入你要接入的目标 repo
+2. 运行 `npx @zhexulong/context-manager init --repo-root .`
+
+通过源码仓库：
+
+1. 克隆这个仓库
+2. 进入 `context-manager/`
+3. 运行 `npm install`
+4. 进入你要接入的目标 repo
+5. 运行 `node /path/to/context-manager/bin/context-manager.mjs init --repo-root .`
+
+如果你当前就在 `context-manager/` 目录里，也可以直接指定目标 repo：
+
+- `node ./bin/context-manager.mjs init --repo-root /path/to/target-repo`
 
 常用命令：
 
@@ -70,3 +84,12 @@ Agent 用久了以后，历史对话会越来越长，但真正有用的信息�
 - `compile` 在来源冲突时以后来的、已验证的当前状态为准，不继续固化过时 guidance
 - `activate_hooks.mjs` 是 `init` 命令的内部实现
 - 日常是否触发通过 `reports/runtime/` 下的被动痕迹判断，不依赖 doctor
+
+## 参考仓库
+
+当前主要参考了这些仓库：
+
+- `coleam00/claude-memory-compiler`
+- `openai/codex`
+- `openai/codex-plugin-cc`
+- `zilliztech/memsearch`
